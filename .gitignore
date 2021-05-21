@@ -1,0 +1,6 @@
+/target
+.env
+.idea/
+.DS_Store
+*.log
+*.db*

@@ -1,0 +1,37 @@
+// test comments
+// "<key>" = "<value>";
+
+"tg_private_help_text" = "Hello. In fact, this is a bot for fixing quotes by keywords.
+This bot works within groups. Add it to the group and call /help to display the list of commands.";
+"tg_group_help_without_db" = "Shalom, this bot perpetuates quotes in a video meme. Will you be able to cope with it?";
+"tg_group_help_with_db" = "Meme quote bot: add a picture/music with unique keywords separated by commas (grandfather,diabetes,moped) and enjoy how the bot will create a video quote to the message with trigger words.
+And bot can make a barrel and executes following commands:
+/addimage <trigger_words> - Add an image (as a document with comment) with a list of trigger words.
+/addaudio <trigger_words> - Add an audio (as a document with comment) with a list of trigger words.
+/listaudio - Show a list of names of all audio -- keywords.
+/listimage - Show a list of names of all image -- keywords.
+/rmimage <image_name> - Delete an image by name.
+/rmaudio <audio_name> - Delete an audio by name.
+/editimage <image_name> <new_trigger_words> - Change keywords for a specific image.
+/editaudio <audio_name> <new_trigger_words> - Change the keywords for a specific audio.
+/listwords - Get trigger words from all content.";
+
+"tg_empty_list_message" = "List is empty🥲";
+"tg_invalid_arguments" = "❌ Where are arguments?";
+
+"tg_rm_content_success" = "✅ Content removed";
+"tg_rm_content_error" = "❌ Are you sure there is one?";
+
+"tg_audio_add_success" = "✅ Audio added!";
+"tg_audio_add_dw_error" = "❌ Failed to download file...";
+"tg_audio_add_format_error" = "❌ Doesn't look like a audio document";
+
+"tg_image_add_success" = "✅ Image added!";
+"tg_image_add_dw_error" = "❌ Failed to download file...";
+"tg_image_add_format_invalid" = "❌ Image must be JPEG";
+"tg_image_add_format_error" = "❌ Doesn't look like a picture document";
+
+"tg_keyword_error" = "❌ Very bad keywords. Try something like: hello,ivan,separator";
+
+"tg_done_msg" = "🔫 Done";
+"tg_error_msg" = "🗿 Lol, what the fuck i'm reading, bruh?";
