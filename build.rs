@@ -6,9 +6,10 @@ use std::env::{
     consts::{ARCH, OS},
 };
 use std::fs;
+use std::io::ErrorKind;
 use std::ops::Add;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, exit};
 
 #[cfg(debug_assertions)]
 const BUILD_TYPE: &'static str = "debug";
@@ -16,6 +17,8 @@ const BUILD_TYPE: &'static str = "debug";
 const BUILD_TYPE: &'static str = "release";
 
 fn main() {
+    create_db();
+
     let out_dir = env::var("OUT_DIR").unwrap();
     let version_path = Path::new(&out_dir).join("version");
     let mut result: Vec<String> = Vec::new();
@@ -88,4 +91,25 @@ fn is_working_tree_clean() -> bool {
         .and_then(|status| status.code())
         .map(|code| code == 0)
         .unwrap_or(false)
+}
+
+
+fn create_db() {
+    Command::new("sqlx")
+        .arg("db")
+        .arg("create")
+        .status()
+        .unwrap_or_else(|e| {
+            if e.kind() == ErrorKind::NotFound {
+                println!("No sqlx executable in path!");
+            }
+            exit(1);
+        });
+    Command::new("sqlx")
+        .arg("migrate")
+        .arg("run")
+        .status()
+        .unwrap_or_else(|_| {
+            exit(1);
+        });
 }
