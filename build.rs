@@ -16,8 +16,15 @@ const BUILD_TYPE: &'static str = "debug";
 #[cfg(not(debug_assertions))]
 const BUILD_TYPE: &'static str = "release";
 
+#[cfg(feature = "db")]
+const SHOULD_BUILD_DB: bool = true;
+#[cfg(not(feature = "db"))]
+const SHOULD_BUILD_DB: bool = false;
+
 fn main() {
-    create_db();
+    if SHOULD_BUILD_DB {
+        create_db();
+    }
 
     let out_dir = env::var("OUT_DIR").unwrap();
     let version_path = Path::new(&out_dir).join("version");
