@@ -89,15 +89,21 @@ impl DBConn {
         let mut buff: Vec<ContentModel> = Vec::new();
         for word in words {
             let regex_word: String = format!("%{}%", word);
-            let query = sqlx::query_as!(
-                ContentModel,
-                "SELECT * FROM contents WHERE chat_id == ? AND is_image == ? AND words LIKE ? ORDER BY RANDOM() LIMIT 1",
+            let query = sqlx::query!(
+                "SELECT * FROM contents WHERE chat_id == ? AND is_image == ? AND words LIKE ? LIMIT 1",
                 chat_id,
                 is_image,
                 regex_word
             );
             if let Ok(item) = query.fetch_one(&self.pool).await {
-                buff.push(item);
+                buff.push(ContentModel {
+                    id: item.id,
+                    chat_id: item.chat_id,
+                    is_image: item.is_image,
+                    words: item.words,
+                    name: item.name,
+                    data: item.data,
+                });
             }
         }
         buff.choose(&mut rand::thread_rng())

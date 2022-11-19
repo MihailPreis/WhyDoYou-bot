@@ -1,16 +1,13 @@
 //! Telegram bot implementation
 
-use std::borrow::Cow;
 use std::io::Cursor;
 
 use lazy_static::lazy_static;
 use log::{error, info};
 use regex::Captures;
 use regex::Regex;
-use teloxide::dispatching::UpdateWithCx;
 use teloxide::net::Download;
 use teloxide::prelude::*;
-use teloxide::prelude::{AutoSend, Message, RequesterExt};
 use teloxide::requests::Requester;
 use teloxide::types::{
     InputFile, MediaAudio, MediaDocument, MediaKind, MediaText, MessageCommon, MessageKind,
@@ -53,25 +50,25 @@ lazy_static! {
 
 /// Run TG bot and await
 pub async fn run_tg_bot() {
-    let bot = Bot::from_env().auto_send();
+    let bot = Bot::from_env();
     teloxide::repl(bot, handler).await;
 }
 
-async fn handler<'a>(message: UpdateWithCx<AutoSend<Bot>, Message>) -> Result<(), ()> {
-    return match handle_message(&message).await {
+async fn handler<'a>(bot: Bot, message: Message) -> ResponseResult<()> {
+    return match handle_message(&bot, &message).await {
         Ok(_) => Ok(()),
         Err(e) => {
-            error!("{:?}", e.message);
+            error!("{:?}", e);
             Ok(())
         }
     };
 }
 
-async fn download_file(bot: &AutoSend<Bot>, file_id: String) -> Option<Vec<u8>> {
+async fn download_file(bot: &Bot, file_id: String) -> Option<Vec<u8>> {
     if let Ok(file) = bot.get_file(file_id).await {
         let mut out: Vec<u8> = Vec::new();
         let mut cursor = Cursor::new(&mut out);
-        if let Ok(_) = bot.download_file(&file.file_path, &mut cursor).await {
+        if let Ok(_) = bot.download_file(&file.path, &mut cursor).await {
             if !out.is_empty() {
                 return Some(out);
             }
@@ -86,8 +83,8 @@ fn get_text(message: &UpdateWithCx<AutoSend<Bot>, Message>) -> Option<&str> {
 }
 
 #[cfg(feature = "db")]
-fn get_text(message: &UpdateWithCx<AutoSend<Bot>, Message>) -> Option<&str> {
-    match &message.update.kind {
+fn get_text(message: &Message) -> Option<&str> {
+    match &message.kind {
         Common(MessageCommon {
             media_kind: MediaKind::Text(MediaText { text, .. }),
             ..
@@ -120,48 +117,51 @@ async fn get_custom_words_from_db(chat_id: i64) -> Option<String> {
     }
 }
 
-async fn handle_message<'a>(
-    message: &UpdateWithCx<AutoSend<Bot>, Message>,
-) -> Result<(), HandlerError> {
-    let user = match message.update.from() {
+async fn handle_message<'a>(bot: &Bot, message: &Message) -> Result<(), HandlerError> {
+    let user = match message.from() {
         None => return Ok(()),
         Some(user) => user,
     };
-    let bot: &AutoSend<Bot> = &message.requester;
     let photos: UserProfilePhotos = bot.get_user_profile_photos(user.id).await?;
     let data = match get_text(message) {
         Some(data) if !data.is_empty() => data,
         _ => return Ok(()),
     };
 
-    if message.update.chat.is_private() {
+    if message.chat.is_private() {
         let help_text = TEXTS.get_tg("private_help_text", &message);
-        match message.update.text() {
+        match message.text() {
             Some(HELP_CMD) => {
-                message.answer(help_text).await?;
+                bot.send_message(message.chat.id, help_text)
+                    .reply_to_message_id(message.id)
+                    .await?;
             }
             Some(START_CMD) => {
-                message.answer(help_text).await?;
+                bot.send_message(message.chat.id, help_text)
+                    .reply_to_message_id(message.id)
+                    .await?;
             }
             Some(VERSION_CMD) => {
-                message.answer(VERSION_STRING).await?;
+                bot.send_message(message.chat.id, VERSION_STRING)
+                    .reply_to_message_id(message.id)
+                    .await?;
             }
             _ => {}
         };
     }
 
-    if !message.update.chat.is_group() && !message.update.chat.is_supergroup() {
+    if !message.chat.is_group() && !message.chat.is_supergroup() {
         return Ok(());
     }
 
     info!("Bot received a new message: {}", data);
 
     if data.starts_with("/") {
-        if let Ok(group_admins) = bot.get_chat_administrators(message.update.chat.id).await {
+        if let Ok(group_admins) = bot.get_chat_administrators(message.chat.id).await {
             if group_admins
                 .iter()
                 .map(|u| u.user.id)
-                .collect::<Vec<i64>>()
+                .collect::<Vec<UserId>>()
                 .contains(&user.id)
             {
                 info!(
@@ -171,10 +171,12 @@ async fn handle_message<'a>(
                         .unwrap_or(&String::from(UNKNOWN_USER))
                 );
                 return if data == VERSION_CMD {
-                    message.reply_to(VERSION_STRING).await?;
+                    bot.send_message(message.chat.id, VERSION_STRING)
+                        .reply_to_message_id(message.id)
+                        .await?;
                     Ok(())
                 } else {
-                    exec_command(message).await
+                    exec_command(bot, message).await
                 };
             }
             info!(
@@ -187,11 +189,13 @@ async fn handle_message<'a>(
     } else {
         let image_handler = async move {
             if let Ok(db_conn) = DBConn::new().await {
-                if let Some(custom_words) = get_custom_words_from_db(message.update.chat.id).await {
+                if let Some(custom_words) =
+                    get_custom_words_from_db(message.chat.id.clone().0).await
+                {
                     let _words = contains_in(custom_words, String::from(data));
                     if !_words.is_empty() {
                         if let Ok(content) = db_conn
-                            .get_random_content(message.update.chat.id, true, _words)
+                            .get_random_content(message.chat.id.0, true, _words)
                             .await
                         {
                             info!("Use random image from DB.");
@@ -203,21 +207,23 @@ async fn handle_message<'a>(
                 .photos
                 .first()
                 .and_then(|s| s.last())
-                .and_then(|i| Some(i.file_id.clone()))
+                .and_then(|i| Some(i.file.id.clone()))
             {
                 info!("Use user avatar.");
-                return download_file(bot, photo_id).await;
+                return download_file(&bot, photo_id).await;
             }
             info!("Use default image.");
             return None;
         };
         let audio_handler = async move {
             if let Ok(db_conn) = DBConn::new().await {
-                if let Some(custom_words) = get_custom_words_from_db(message.update.chat.id).await {
+                if let Some(custom_words) =
+                    get_custom_words_from_db(message.chat.id.clone().0).await
+                {
                     let _words = contains_in(custom_words, String::from(data));
                     if !_words.is_empty() {
                         if let Ok(content) = db_conn
-                            .get_random_content(message.update.chat.id, false, _words)
+                            .get_random_content(message.chat.id.0, false, _words)
                             .await
                         {
                             return Some(content.data);
@@ -229,7 +235,7 @@ async fn handle_message<'a>(
         };
         return match build_message(
             &*data,
-            get_custom_words_from_db(message.update.chat.id).await,
+            get_custom_words_from_db(message.chat.id.clone().0).await,
             image_handler,
             audio_handler,
         )
@@ -237,22 +243,14 @@ async fn handle_message<'a>(
         {
             Ok(v_data) => match v_data {
                 Video(video) => {
-                    message
-                        .answer_video(InputFile::Memory {
-                            file_name: "data.mp4".to_string(),
-                            data: Cow::from(video),
-                        })
-                        .reply_to_message_id(message.update.id)
+                    bot.send_video(message.chat.id, InputFile::memory(video))
+                        .reply_to_message_id(message.id)
                         .await?;
                     Ok(())
                 }
                 Image(image) => {
-                    message
-                        .answer_photo(InputFile::Memory {
-                            file_name: "image.jpg".to_string(),
-                            data: Cow::from(image),
-                        })
-                        .reply_to_message_id(message.update.id)
+                    bot.send_photo(message.chat.id, InputFile::memory(image))
+                        .reply_to_message_id(message.id)
                         .await?;
                     Ok(())
                 }
@@ -283,8 +281,8 @@ async fn exec_command(msg: &UpdateWithCx<AutoSend<Bot>, Message>) -> Result<(), 
 }
 
 #[cfg(feature = "db")]
-async fn exec_command(msg: &UpdateWithCx<AutoSend<Bot>, Message>) -> Result<(), HandlerError> {
-    let data = get_text(msg).unwrap_or("");
+async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> {
+    let data = get_text(message).unwrap_or("");
     let match_cmd = CMD_REGEX
         .captures(&*data)
         .ok_or(HandlerError::new(String::from("Invalid command")))?;
@@ -294,33 +292,39 @@ async fn exec_command(msg: &UpdateWithCx<AutoSend<Bot>, Message>) -> Result<(), 
         .or_else(|| Some(""))
         .unwrap();
 
-    async fn get_help(msg: &UpdateWithCx<AutoSend<Bot>, Message>) -> Result<(), HandlerError> {
-        msg.reply_to(TEXTS.get_tg("group_help_with_db", msg))
+    async fn get_help(bot: &Bot, msg: &Message) -> Result<(), HandlerError> {
+        bot.send_message(msg.chat.id, TEXTS.get_tg("group_help_with_db", msg))
+            .reply_to_message_id(msg.id)
             .await?;
         Ok(())
     }
 
-    async fn get_words(msg: &UpdateWithCx<AutoSend<Bot>, Message>) -> Result<(), HandlerError> {
-        let resp = DBConn::new().await?.get_words(msg.update.chat.id).await?;
+    async fn get_words(bot: &Bot, msg: &Message) -> Result<(), HandlerError> {
+        let resp = DBConn::new().await?.get_words(msg.chat.id.0).await?;
         if resp.is_empty() {
-            msg.reply_to(TEXTS.get_tg("empty_list_message", msg))
+            bot.send_message(msg.chat.id, TEXTS.get_tg("empty_list_message", msg))
+                .reply_to_message_id(msg.id)
                 .await?;
         } else {
-            msg.reply_to(resp).await?;
+            bot.send_message(msg.chat.id, resp)
+                .reply_to_message_id(msg.id)
+                .await?;
         }
         Ok(())
     }
 
     async fn get_all_contents(
-        msg: &UpdateWithCx<AutoSend<Bot>, Message>,
+        bot: &Bot,
+        msg: &Message,
         is_image: bool,
     ) -> Result<(), HandlerError> {
         let items = DBConn::new()
             .await?
-            .get_all_contents(msg.update.chat.id, is_image)
+            .get_all_contents(msg.chat.id.0, is_image)
             .await?;
         if items.is_empty() {
-            msg.reply_to(TEXTS.get_tg("empty_list_message", msg))
+            bot.send_message(msg.chat.id, TEXTS.get_tg("empty_list_message", msg))
+                .reply_to_message_id(msg.id)
                 .await?;
         } else {
             let resp = items
@@ -328,18 +332,23 @@ async fn exec_command(msg: &UpdateWithCx<AutoSend<Bot>, Message>) -> Result<(), 
                 .map(|i| format!("{} - {}", i.name, i.words))
                 .collect::<Vec<String>>()
                 .join("\n");
-            msg.reply_to(resp).await?;
+            bot.send_message(msg.chat.id, resp)
+                .reply_to_message_id(msg.id)
+                .await?;
         }
         Ok(())
     }
 
     async fn rm_content(
         match_cmd: Captures<'_>,
-        msg: &UpdateWithCx<AutoSend<Bot>, Message>,
+        bot: &Bot,
+        msg: &Message,
         is_image: bool,
     ) -> Result<(), HandlerError> {
         if match_cmd.len() <= 2 {
-            msg.reply_to(TEXTS.get_tg("invalid_arguments", msg)).await?;
+            bot.send_message(msg.chat.id, TEXTS.get_tg("invalid_arguments", msg))
+                .reply_to_message_id(msg.id)
+                .await?;
             return Err(HandlerError::from_str("Args invalid"));
         }
         let args = match_cmd
@@ -350,100 +359,106 @@ async fn exec_command(msg: &UpdateWithCx<AutoSend<Bot>, Message>) -> Result<(), 
             .trim();
         match DBConn::new()
             .await?
-            .rm_content(msg.update.chat.id, is_image, String::from(args))
+            .rm_content(msg.chat.id.0, is_image, String::from(args))
             .await
         {
             Ok(_) => {
-                msg.reply_to(TEXTS.get_tg("rm_content_success", msg))
+                bot.send_message(msg.chat.id, TEXTS.get_tg("rm_content_success", msg))
+                    .reply_to_message_id(msg.id)
                     .await?;
             }
             Err(_) => {
-                msg.reply_to(TEXTS.get_tg("rm_content_error", msg)).await?;
+                bot.send_message(msg.chat.id, TEXTS.get_tg("rm_content_error", msg))
+                    .reply_to_message_id(msg.id)
+                    .await?;
             }
         }
         Ok(())
     }
 
-    async fn add_audio(
-        msg: &&UpdateWithCx<AutoSend<Bot>, Message>,
-        words: String,
-    ) -> Result<(), HandlerError> {
-        if let MessageKind::Common(item) = &msg.update.kind {
+    async fn add_audio(bot: &Bot, msg: &Message, words: String) -> Result<(), HandlerError> {
+        if let MessageKind::Common(item) = &msg.kind {
             if let MediaKind::Audio(audio) = &item.media_kind {
                 if let Some(file_name) = &audio.audio.file_name {
-                    if let Some(data) =
-                        download_file(&msg.requester, audio.audio.file_id.clone()).await
-                    {
+                    if let Some(data) = download_file(bot, audio.audio.file.id.clone()).await {
                         DBConn::new()
                             .await?
                             .add_content(ContentModel::from(
-                                msg.update.chat.id,
+                                msg.chat.id.0,
                                 false,
                                 words,
                                 file_name.clone(),
                                 data,
                             ))
                             .await?;
-                        msg.reply_to(TEXTS.get_tg("audio_add_success", msg)).await?;
+                        bot.send_message(msg.chat.id, TEXTS.get_tg("audio_add_success", msg))
+                            .reply_to_message_id(msg.id)
+                            .await?;
                         return Ok(());
                     }
-                    msg.reply_to(TEXTS.get_tg("audio_add_dw_error", msg))
+                    bot.send_message(msg.chat.id, TEXTS.get_tg("audio_add_dw_error", msg))
+                        .reply_to_message_id(msg.id)
                         .await?;
                     return Err(HandlerError::from_str("Invalid file load"));
                 }
             }
         }
-        msg.reply_to(TEXTS.get_tg("audio_add_format_error", msg))
+        bot.send_message(msg.chat.id, TEXTS.get_tg("audio_add_format_error", msg))
+            .reply_to_message_id(msg.id)
             .await?;
         return Err(HandlerError::from_str("Invalid document"));
     }
 
-    async fn add_image(
-        msg: &&UpdateWithCx<AutoSend<Bot>, Message>,
-        words: String,
-    ) -> Result<(), HandlerError> {
-        if let MessageKind::Common(item) = &msg.update.kind {
+    async fn add_image(bot: &Bot, msg: &Message, words: String) -> Result<(), HandlerError> {
+        if let MessageKind::Common(item) = &msg.kind {
             if let MediaKind::Document(doc) = &item.media_kind {
                 if doc.document.mime_type == Some(mime::IMAGE_JPEG) {
                     if let Some(file_name) = &doc.document.file_name {
-                        if let Some(data) =
-                            download_file(&msg.requester, doc.document.file_id.clone()).await
-                        {
+                        if let Some(data) = download_file(bot, doc.document.file.id.clone()).await {
                             DBConn::new()
                                 .await?
                                 .add_content(ContentModel::from(
-                                    msg.update.chat.id,
+                                    msg.chat.id.0,
                                     true,
                                     words,
                                     file_name.clone(),
                                     data,
                                 ))
                                 .await?;
-                            msg.reply_to(TEXTS.get_tg("image_add_success", msg)).await?;
+                            bot.send_message(msg.chat.id, TEXTS.get_tg("image_add_success", msg))
+                                .reply_to_message_id(msg.id)
+                                .await?;
                             return Ok(());
                         }
-                        msg.reply_to(TEXTS.get_tg("image_add_dw_error", msg))
+                        bot.send_message(msg.chat.id, TEXTS.get_tg("image_add_dw_error", msg))
+                            .reply_to_message_id(msg.id)
                             .await?;
                         return Err(HandlerError::from_str("Invalid file load"));
                     }
                 }
-                msg.reply_to(TEXTS.get_tg("image_add_format_invalid", msg))
+                bot.send_message(msg.chat.id, TEXTS.get_tg("image_add_format_invalid", msg))
+                    .reply_to_message_id(msg.id)
                     .await?;
                 return Err(HandlerError::from_str("Invalid image format"));
             }
         }
-        msg.reply_to(TEXTS.get_tg("image_add_format_error", msg))
+        bot.send_message(msg.chat.id, TEXTS.get_tg("image_add_format_error", msg))
+            .reply_to_message_id(msg.id)
             .await?;
         return Err(HandlerError::from_str("Invalid document"));
     }
 
     async fn add_content(
         match_cmd: Captures<'_>,
-        msg: &&UpdateWithCx<AutoSend<Bot>, Message>,
+        bot: &Bot,
+        msg: &Message,
         is_image: bool,
     ) -> Result<(), HandlerError> {
         if match_cmd.len() <= 2 {
-            msg.reply_to(TEXTS.get_tg("invalid_arguments", msg)).await?;
+            bot.send_message(msg.chat.id, TEXTS.get_tg("invalid_arguments", msg))
+                .reply_to_message_id(msg.id)
+                .await?;
+            // TODO: wtf is this? why it is error?
             return Err(HandlerError::from_str("Args invalid"));
         }
         let args = match_cmd
@@ -453,22 +468,27 @@ async fn exec_command(msg: &UpdateWithCx<AutoSend<Bot>, Message>) -> Result<(), 
             .unwrap()
             .trim();
         if !WORDS_REGEX.is_match(args) {
-            msg.reply_to(TEXTS.get_tg("keyword_error", msg)).await?;
+            bot.send_message(msg.chat.id, TEXTS.get_tg("keyword_error", msg))
+                .reply_to_message_id(msg.id)
+                .await?;
             return Err(HandlerError::from_str("Invalid keywoeds"));
         }
         match is_image {
-            true => add_image(msg, String::from(args)).await,
-            false => add_audio(msg, String::from(args)).await,
+            true => add_image(bot, msg, String::from(args)).await,
+            false => add_audio(bot, msg, String::from(args)).await,
         }
     }
 
     async fn change_words(
         match_cmd: Captures<'_>,
-        msg: &UpdateWithCx<AutoSend<Bot>, Message>,
+        bot: &Bot,
+        msg: &Message,
         is_image: bool,
     ) -> Result<(), HandlerError> {
         if match_cmd.len() <= 2 {
-            msg.reply_to(TEXTS.get_tg("invalid_arguments", msg)).await?;
+            bot.send_message(msg.chat.id, TEXTS.get_tg("invalid_arguments", msg))
+                .reply_to_message_id(msg.id)
+                .await?;
             return Err(HandlerError::from_str("Args invalid"));
         }
         let args = match_cmd
@@ -491,30 +511,34 @@ async fn exec_command(msg: &UpdateWithCx<AutoSend<Bot>, Message>) -> Result<(), 
             DBConn::new()
                 .await?
                 .change_words(
-                    msg.update.chat.id,
+                    msg.chat.id.0,
                     is_image,
                     String::from(file_name),
                     String::from(new_words),
                 )
                 .await?;
-            msg.reply_to(TEXTS.get_tg("done_msg", msg)).await?;
+            bot.send_message(msg.chat.id, TEXTS.get_tg("done_msg", msg))
+                .reply_to_message_id(msg.id)
+                .await?;
             return Ok(());
         }
-        msg.reply_to(TEXTS.get_tg("error_msg", msg)).await?;
+        bot.send_message(msg.chat.id, TEXTS.get_tg("error_msg", msg))
+            .reply_to_message_id(msg.id)
+            .await?;
         Err(HandlerError::from_str("Args invalid"))
     }
 
     match cmd {
-        HELP => get_help(msg).await?,
-        LIST_IMAGE => get_all_contents(msg, true).await?,
-        LIST_AUDIO => get_all_contents(msg, false).await?,
-        LIST_WORDS => get_words(msg).await?,
-        ADD_IMAGE => add_content(match_cmd, &msg, true).await?,
-        ADD_AUDIO => add_content(match_cmd, &msg, false).await?,
-        RM_IMAGE => rm_content(match_cmd, &msg, true).await?,
-        RM_AUDIO => rm_content(match_cmd, &msg, false).await?,
-        EDIT_IMAGE => change_words(match_cmd, msg, true).await?,
-        EDIT_AUDIO => change_words(match_cmd, msg, false).await?,
+        HELP => get_help(bot, message).await?,
+        LIST_IMAGE => get_all_contents(bot, message, true).await?,
+        LIST_AUDIO => get_all_contents(bot, message, false).await?,
+        LIST_WORDS => get_words(bot, message).await?,
+        ADD_IMAGE => add_content(match_cmd, bot, message, true).await?,
+        ADD_AUDIO => add_content(match_cmd, bot, message, false).await?,
+        RM_IMAGE => rm_content(match_cmd, bot, message, true).await?,
+        RM_AUDIO => rm_content(match_cmd, bot, message, false).await?,
+        EDIT_IMAGE => change_words(match_cmd, bot, message, true).await?,
+        EDIT_AUDIO => change_words(match_cmd, bot, message, false).await?,
         &_ => return Err(HandlerError::from_str("Command not found")),
     };
     Ok(())
@@ -528,9 +552,8 @@ impl Locale {
     ///  - msg: message instance from teloxide message handler
     ///
     /// Return: localized string or key
-    fn get_tg(&self, key: &str, msg: &UpdateWithCx<AutoSend<Bot>, Message>) -> String {
+    fn get_tg(&self, key: &str, msg: &Message) -> String {
         let lang = &msg
-            .update
             .from()
             .and_then(|u| u.language_code.clone())
             .unwrap_or(String::from("en"));

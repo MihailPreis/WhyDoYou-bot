@@ -1,5 +1,3 @@
-#![feature(bool_to_option)]
-
 use crate::models::db_conn::setup_db;
 use crate::models::run_options::RunOptions;
 use crate::utils::logger::setup_logger;
