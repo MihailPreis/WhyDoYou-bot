@@ -96,16 +96,14 @@ impl DBConn {
                 regex_word
             );
             if let Ok(item) = query.fetch_one(&self.pool).await {
-                buff.push(
-                    ContentModel {
-                        id: item.id,
-                        chat_id: item.chat_id,
-                        is_image: item.is_image,
-                        words: item.words,
-                        name: item.name,
-                        data: item.data,
-                    }
-                );
+                buff.push(ContentModel {
+                    id: item.id,
+                    chat_id: item.chat_id,
+                    is_image: item.is_image,
+                    words: item.words,
+                    name: item.name,
+                    data: item.data,
+                });
             }
         }
         buff.choose(&mut rand::thread_rng())

@@ -3,9 +3,9 @@ use image::ImageError;
 use log::SetLoggerError;
 use mime::FromStrError;
 use reqwest::Error;
-use std::num::TryFromIntError;
 #[cfg(feature = "db")]
 use sqlx::migrate::MigrateError;
+use std::num::TryFromIntError;
 #[cfg(feature = "tg")]
 use teloxide::{DownloadError, RequestError};
 

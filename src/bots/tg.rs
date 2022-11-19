@@ -117,10 +117,7 @@ async fn get_custom_words_from_db(chat_id: i64) -> Option<String> {
     }
 }
 
-async fn handle_message<'a>(
-    bot: &Bot,
-    message: &Message,
-) -> Result<(), HandlerError> {
+async fn handle_message<'a>(bot: &Bot, message: &Message) -> Result<(), HandlerError> {
     let user = match message.from() {
         None => return Ok(()),
         Some(user) => user,
@@ -135,13 +132,19 @@ async fn handle_message<'a>(
         let help_text = TEXTS.get_tg("private_help_text", &message);
         match message.text() {
             Some(HELP_CMD) => {
-                bot.send_message(message.chat.id, help_text).reply_to_message_id(message.id).await?;
+                bot.send_message(message.chat.id, help_text)
+                    .reply_to_message_id(message.id)
+                    .await?;
             }
             Some(START_CMD) => {
-                bot.send_message(message.chat.id, help_text).reply_to_message_id(message.id).await?;
+                bot.send_message(message.chat.id, help_text)
+                    .reply_to_message_id(message.id)
+                    .await?;
             }
             Some(VERSION_CMD) => {
-                bot.send_message(message.chat.id, VERSION_STRING).reply_to_message_id(message.id).await?;
+                bot.send_message(message.chat.id, VERSION_STRING)
+                    .reply_to_message_id(message.id)
+                    .await?;
             }
             _ => {}
         };
@@ -168,7 +171,9 @@ async fn handle_message<'a>(
                         .unwrap_or(&String::from(UNKNOWN_USER))
                 );
                 return if data == VERSION_CMD {
-                    bot.send_message(message.chat.id, VERSION_STRING).reply_to_message_id(message.id).await?;
+                    bot.send_message(message.chat.id, VERSION_STRING)
+                        .reply_to_message_id(message.id)
+                        .await?;
                     Ok(())
                 } else {
                     exec_command(bot, message).await
@@ -184,7 +189,9 @@ async fn handle_message<'a>(
     } else {
         let image_handler = async move {
             if let Ok(db_conn) = DBConn::new().await {
-                if let Some(custom_words) = get_custom_words_from_db(message.chat.id.clone().0).await {
+                if let Some(custom_words) =
+                    get_custom_words_from_db(message.chat.id.clone().0).await
+                {
                     let _words = contains_in(custom_words, String::from(data));
                     if !_words.is_empty() {
                         if let Ok(content) = db_conn
@@ -210,7 +217,9 @@ async fn handle_message<'a>(
         };
         let audio_handler = async move {
             if let Ok(db_conn) = DBConn::new().await {
-                if let Some(custom_words) = get_custom_words_from_db(message.chat.id.clone().0).await {
+                if let Some(custom_words) =
+                    get_custom_words_from_db(message.chat.id.clone().0).await
+                {
                     let _words = contains_in(custom_words, String::from(data));
                     if !_words.is_empty() {
                         if let Ok(content) = db_conn
@@ -234,23 +243,13 @@ async fn handle_message<'a>(
         {
             Ok(v_data) => match v_data {
                 Video(video) => {
-                    bot.send_video(
-                        message.chat.id,
-                        InputFile::memory(
-                            video,
-                        ),
-                    )
+                    bot.send_video(message.chat.id, InputFile::memory(video))
                         .reply_to_message_id(message.id)
                         .await?;
                     Ok(())
                 }
                 Image(image) => {
-                    bot.send_photo(
-                        message.chat.id,
-                        InputFile::memory(
-                            image,
-                        ),
-                    )
+                    bot.send_photo(message.chat.id, InputFile::memory(image))
                         .reply_to_message_id(message.id)
                         .await?;
                     Ok(())
@@ -315,7 +314,8 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
     }
 
     async fn get_all_contents(
-        bot: &Bot, msg: &Message,
+        bot: &Bot,
+        msg: &Message,
         is_image: bool,
     ) -> Result<(), HandlerError> {
         let items = DBConn::new()
@@ -341,7 +341,8 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
 
     async fn rm_content(
         match_cmd: Captures<'_>,
-        bot: &Bot, msg: &Message,
+        bot: &Bot,
+        msg: &Message,
         is_image: bool,
     ) -> Result<(), HandlerError> {
         if match_cmd.len() <= 2 {
@@ -375,16 +376,11 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
         Ok(())
     }
 
-    async fn add_audio(
-        bot: &Bot, msg: &Message,
-        words: String,
-    ) -> Result<(), HandlerError> {
+    async fn add_audio(bot: &Bot, msg: &Message, words: String) -> Result<(), HandlerError> {
         if let MessageKind::Common(item) = &msg.kind {
             if let MediaKind::Audio(audio) = &item.media_kind {
                 if let Some(file_name) = &audio.audio.file_name {
-                    if let Some(data) =
-                        download_file(bot, audio.audio.file.id.clone()).await
-                    {
+                    if let Some(data) = download_file(bot, audio.audio.file.id.clone()).await {
                         DBConn::new()
                             .await?
                             .add_content(ContentModel::from(
@@ -413,17 +409,12 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
         return Err(HandlerError::from_str("Invalid document"));
     }
 
-    async fn add_image(
-        bot: &Bot, msg: &Message,
-        words: String,
-    ) -> Result<(), HandlerError> {
+    async fn add_image(bot: &Bot, msg: &Message, words: String) -> Result<(), HandlerError> {
         if let MessageKind::Common(item) = &msg.kind {
             if let MediaKind::Document(doc) = &item.media_kind {
                 if doc.document.mime_type == Some(mime::IMAGE_JPEG) {
                     if let Some(file_name) = &doc.document.file_name {
-                        if let Some(data) =
-                            download_file(bot, doc.document.file.id.clone()).await
-                        {
+                        if let Some(data) = download_file(bot, doc.document.file.id.clone()).await {
                             DBConn::new()
                                 .await?
                                 .add_content(ContentModel::from(
@@ -459,7 +450,8 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
 
     async fn add_content(
         match_cmd: Captures<'_>,
-        bot: &Bot, msg: &Message,
+        bot: &Bot,
+        msg: &Message,
         is_image: bool,
     ) -> Result<(), HandlerError> {
         if match_cmd.len() <= 2 {
@@ -482,14 +474,15 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
             return Err(HandlerError::from_str("Invalid keywoeds"));
         }
         match is_image {
-            true => add_image(bot, msg,String::from(args)).await,
+            true => add_image(bot, msg, String::from(args)).await,
             false => add_audio(bot, msg, String::from(args)).await,
         }
     }
 
     async fn change_words(
         match_cmd: Captures<'_>,
-        bot: &Bot, msg: &Message,
+        bot: &Bot,
+        msg: &Message,
         is_image: bool,
     ) -> Result<(), HandlerError> {
         if match_cmd.len() <= 2 {

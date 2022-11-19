@@ -25,9 +25,9 @@ use crate::models::text_size_box::TextSizeBox;
 use crate::models::v_data::VData;
 use crate::utils::size_utils::aspect_resize;
 use crate::utils::string_utils::{batch, contains_in};
+use image::codecs::png::PngEncoder;
 use image::imageops::FilterType;
 use std::future::Future;
-use image::codecs::png::PngEncoder;
 
 const WORDS_KEY: &str = "WORDS";
 const CONVERTER_URL_KEY: &str = "CONVERTER_URL";

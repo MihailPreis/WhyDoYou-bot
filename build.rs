@@ -7,7 +7,7 @@ use std::fs;
 use std::io::ErrorKind;
 use std::ops::Add;
 use std::path::Path;
-use std::process::{Command, exit};
+use std::process::{exit, Command};
 
 #[cfg(debug_assertions)]
 const BUILD_TYPE: &'static str = "debug";
@@ -97,7 +97,6 @@ fn is_working_tree_clean() -> bool {
         .map(|code| code == 0)
         .unwrap_or(false)
 }
-
 
 fn create_db() {
     Command::new("sqlx")
