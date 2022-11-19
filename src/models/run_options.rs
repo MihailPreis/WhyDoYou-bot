@@ -1,11 +1,10 @@
 use crate::utils::version::VERSION_STRING;
-use clap::{AppSettings, Clap};
+use clap::Parser;
 
-#[derive(Clap)]
-#[clap(version = VERSION_STRING)]
-#[clap(setting = AppSettings::ColoredHelp)]
+#[derive(Parser)]
+#[command(version = VERSION_STRING)]
 pub struct RunOptions {
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub debug: bool,
 }
 

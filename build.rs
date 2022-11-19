@@ -1,5 +1,3 @@
-#![feature(bool_to_option)]
-
 use chrono::prelude::*;
 use std::env::{
     self,

@@ -54,7 +54,7 @@ impl Locale {
     fn _test_keys(&self) -> Result<(), HandlerError> {
         let mut is_error = false;
         for locale in &self.locales {
-            &self.locales.iter().for_each(|l| {
+            self.locales.iter().for_each(|l| {
                 if l.lang == locale.lang {
                     return;
                 };

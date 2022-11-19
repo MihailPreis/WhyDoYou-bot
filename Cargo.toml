@@ -1,5 +1,3 @@
-cargo-features = ["strip"]
-
 [package]
 name = "why_do_you_bot"
 description = "Meme-quote bot for Telegram"
@@ -12,7 +10,7 @@ readme = "README.md"
 keywords = ["telegram", "telegram-bot", "meme", "quote"]
 license = "MIT"
 repository = "https://github.com/MihailPreis/WhyDoYou-bot/"
-edition = "2018"
+edition = "2021"
 build = "build.rs"
 
 [package.metadata.docs.rs]
@@ -34,31 +32,28 @@ tg = ["teloxide"]
 db = ["sqlx"]
 
 [dependencies]
-teloxide = { version = "0.4", features = ["auto-send"], optional = true }
+teloxide = { version = "0.11.2", features = ["auto-send"], optional = true }
 tokio = { version = "1.4", features = ["macros", "rt-multi-thread"] }
-sqlx = { version = "0.5", features = ["runtime-tokio-native-tls", "sqlite", "macros", "migrate"], optional = true}
+sqlx = { version = "0.6.2", features = ["runtime-tokio-native-tls", "sqlite", "macros", "migrate"], optional = true}
 dotenv = "0.15"
 log = "0.4"
-fern = "0.5"
-clap = { version = "3.0.0-beta.2", features = ["color"] }
+fern = "0.6.1"
+clap = { version = "4.0.26", features = ["color", "derive"] }
 chrono = "0.4"
 regex = "1.4"
 lazy_static = "1.4"
-imageproc = {version = "0.22", features=["default"] }
+imageproc = {version = "0.23.0", features=["default"] }
 rusttype = "0.9"
-image = "0.23"
+image = "0.24.2"
 reqwest = { version = "0.11", features = ["multipart"] }
 cfg-if = "1.0.0"
 rand = "0.8"
-uuid = { version = "0.8", features = ["v4"] }
+uuid = { version = "1.1.1", features = ["v4"] }
 mime = "0.3.16"
-include_dir = "0.6"
+include_dir = "0.7.2"
 
 [build-dependencies]
 chrono = "0.4"
-
-[patch.crates-io]
-teloxide-core = { git = "https://github.com/teloxide/teloxide-core" } # Fix chat admins
 
 [profile.release]
 opt-level = 3

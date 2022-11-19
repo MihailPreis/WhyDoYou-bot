@@ -3,6 +3,7 @@ use image::ImageError;
 use log::SetLoggerError;
 use mime::FromStrError;
 use reqwest::Error;
+use std::num::TryFromIntError;
 #[cfg(feature = "db")]
 use sqlx::migrate::MigrateError;
 #[cfg(feature = "tg")]
@@ -101,5 +102,11 @@ impl From<fern::InitError> for HandlerError {
 impl From<log::SetLoggerError> for HandlerError {
     fn from(e: SetLoggerError) -> Self {
         HandlerError::new(format!("Logger set error: {:?}", e).to_string())
+    }
+}
+
+impl From<TryFromIntError> for HandlerError {
+    fn from(_: TryFromIntError) -> Self {
+        HandlerError::new("Can not convert value to int!!".to_string())
     }
 }

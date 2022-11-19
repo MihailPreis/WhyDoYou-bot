@@ -11,7 +11,7 @@ pub fn encode_video_local(frame: Vec<u8>, audio: Option<Vec<u8>>) -> Result<Vec<
     debug!("--->>> encode_video LOCAL");
 
     let uuid = Uuid::new_v4()
-        .to_hyphenated()
+        .hyphenated()
         .encode_lower(&mut Uuid::encode_buffer())
         .to_owned();
     let jpg_file = uuid.clone() + ".jpg";

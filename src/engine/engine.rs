@@ -3,11 +3,11 @@
 //! Checking text for finding trigger words and creating a meme quote from a custom (or random) image and sound.
 
 use std::borrow::Borrow;
+use std::convert::TryFrom;
 use std::io::{BufWriter, Cursor};
 use std::str;
 use std::time::Duration;
 
-use image::png::PngEncoder;
 use image::{ColorType, EncodableLayout, GenericImageView, ImageFormat, Rgb, RgbImage};
 use imageproc::definitions::HasWhite;
 use imageproc::drawing::{draw_text, Canvas};
@@ -27,6 +27,7 @@ use crate::utils::size_utils::aspect_resize;
 use crate::utils::string_utils::{batch, contains_in};
 use image::imageops::FilterType;
 use std::future::Future;
+use image::codecs::png::PngEncoder;
 
 const WORDS_KEY: &str = "WORDS";
 const CONVERTER_URL_KEY: &str = "CONVERTER_URL";
@@ -166,8 +167,8 @@ async fn create_image(message: &str, input: Vec<u8>) -> Result<Vec<u8>, HandlerE
         image = draw_text(
             &mut image,
             Rgb::white(),
-            (IMAGE_SIZE - rect.w) / 2,
-            y as u32,
+            i32::try_from((IMAGE_SIZE - rect.w) / 2)?,
+            i32::try_from(y)?,
             *FONT_SIZE,
             &font,
             msg.as_str(),
