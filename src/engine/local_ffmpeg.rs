@@ -1,5 +1,5 @@
 use crate::models::error::HandlerError;
-use log::debug;
+use log::{debug, warn};
 use std::fs::File;
 use std::io;
 use std::io::Write;
@@ -33,8 +33,6 @@ pub fn encode_video_local(frame: Vec<u8>, audio: Option<Vec<u8>>) -> Result<Vec<
         "1",
         "-i",
         jpg_file.as_str(),
-        "-i",
-        "assets/input.mp3",
     ]);
     if let Some(audio) = audio {
         File::create(mp3_file.as_str())
@@ -58,22 +56,33 @@ pub fn encode_video_local(frame: Vec<u8>, audio: Option<Vec<u8>>) -> Result<Vec<
         "yuv420p",
         "-shortest",
         "-t",
-        "10",
+        "30",
         mp4_file.as_str(),
     ]);
-    let is_success = eval(&*args)
+    let mut eval_result = eval(&*args);
+    if let Err(ref err) = eval_result {
+        warn!("error occured while formatting ffmpeg: {:?}", err);
+    }
+    let is_success = eval_result
+        .as_mut()
         .expect("FFMPEG exit with error.")
         .status
         .success();
 
     if is_success {
         debug!("--->>> encode_video LOCAL :: success");
-        let result = std::fs::read("out.mp4")?;
+        let result = std::fs::read(mp4_file.clone())?;
         safe_remove(jpg_file.as_str());
         safe_remove(mp4_file.as_str());
         Ok(result)
     } else {
         debug!("--->>> encode_video LOCAL :: error");
+        if let Ok(ref data) = eval_result {
+            let output = std::str::from_utf8(data.stderr.as_slice());
+            if let Ok(encoded) = output {
+                warn!("stderr is {}", encoded);
+            }
+        }
         safe_remove(jpg_file.as_str());
         safe_remove(mp4_file.as_str());
         Err(HandlerError::empty())
@@ -91,7 +100,7 @@ fn eval(args: &[&str]) -> io::Result<Output> {
     return if cfg!(target_os = "windows") {
         Command::new("cmd").arg("/C").args(args).output()
     } else {
-        Command::new("sh").arg("-c").args(args).output()
+        Command::new("sh").arg("-c").args([args.join(" ")]).output()
     };
 }
 

@@ -12,7 +12,7 @@ use image::{ColorType, EncodableLayout, GenericImageView, ImageFormat, Rgb, RgbI
 use imageproc::definitions::HasWhite;
 use imageproc::drawing::{draw_text, Canvas};
 use lazy_static::lazy_static;
-use log::{debug, info};
+use log::{debug, error, info};
 use regex::Regex;
 use reqwest::{multipart, Client};
 use rusttype::{Font, Scale};
@@ -106,7 +106,10 @@ pub async fn build_message(
     let custom_audio = audio_handler.await;
     match encode_video(image.clone(), custom_audio).await {
         Ok(video) => Ok(Video(video)),
-        Err(_) => Ok(Image(image)),
+        Err(e) => {
+            error!("error encoding video {:?}", e);
+            Ok(Image(image))
+        },
     }
 }
 
