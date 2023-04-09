@@ -14,5 +14,7 @@ jobs:
       run: sudo apt install libssl-dev
     - name: install sqlx
       run: cargo install sqlx-cli
+    - name: write env
+      run: echo "DATABASE_URL=sqlite:bot.db" > .env
     - name: Run build
-      run: DATABASE_URL=sqlite:bot.db sqlx database create && sqlx migrate run && cargo build --features=tg,db
+      run: sqlx database create && sqlx migrate run && cargo build --features=tg,db
