@@ -15,4 +15,4 @@ jobs:
     - name: install sqlx
       run: cargo install sqlx-cli
     - name: Run build
-      run: cargo build --features=tg,db
+      run: sqlx database create && sqlx migrate run && cargo build --features=tg,db
