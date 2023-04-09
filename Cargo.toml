@@ -32,7 +32,7 @@ tg = ["teloxide"]
 db = ["sqlx"]
 
 [dependencies]
-teloxide = { version = "0.11.2", features = ["auto-send"], optional = true }
+teloxide = { version = "0.11.2", features = ["auto-send", "rustls", "ctrlc_handler"], optional = true, default-features = false }
 tokio = { version = "1.4", features = ["macros", "rt-multi-thread"] }
 sqlx = { version = "0.6.2", features = ["runtime-tokio-rustls", "sqlite", "macros", "migrate"], optional = true}
 dotenv = "0.15"

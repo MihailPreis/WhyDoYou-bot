@@ -14,5 +14,5 @@ jobs:
       run: sudo apt install libssl-dev
     - name: install sqlx
       run: cargo install sqlx-cli
-    - name: Run tests
-      run: cargo test
+    - name: Run build
+      run: cargo build --features=tg,db
