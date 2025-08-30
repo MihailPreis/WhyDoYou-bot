@@ -8,14 +8,12 @@ use std::io::{BufWriter, Cursor};
 use std::str;
 use std::time::Duration;
 
-use image::{ColorType, EncodableLayout, GenericImageView, ImageFormat, Rgb, RgbImage};
-use imageproc::definitions::HasWhite;
-use imageproc::drawing::{draw_text, Canvas};
+use image::{ColorType, EncodableLayout, ExtendedColorType, GenericImageView, ImageEncoder, ImageFormat, Rgb, RgbImage};
+use imageproc::drawing::{draw_text, draw_text_mut, Canvas};
 use lazy_static::lazy_static;
 use log::{debug, error, info};
 use regex::Regex;
 use reqwest::{multipart, Client};
-use rusttype::{Font, Scale};
 
 use crate::engine::default_images::get_rand_image;
 use crate::engine::engine::VData::{Image, Video};
@@ -28,6 +26,7 @@ use crate::utils::string_utils::{batch, contains_in};
 use image::codecs::png::PngEncoder;
 use image::imageops::FilterType;
 use std::future::Future;
+use ab_glyph::{PxScale, Font, FontVec, InvalidFont};
 
 const WORDS_KEY: &str = "WORDS";
 const CONVERTER_URL_KEY: &str = "CONVERTER_URL";
@@ -52,7 +51,7 @@ lazy_static! {
         .map(|i| i.to_string())
         .collect::<Vec<String>>();
     static ref CLIENT: Client = reqwest::Client::new();
-    static ref FONT_SIZE: Scale = Scale::uniform(64.0);
+    static ref FONT_SIZE: PxScale = PxScale::from(64.0);
 }
 
 /// Create meme-quote if needs with optional image and audio
@@ -114,11 +113,11 @@ pub async fn build_message(
 }
 
 async fn create_image(message: &str, input: Vec<u8>) -> Result<Vec<u8>, HandlerError> {
-    let font = match Font::try_from_vec(Vec::from(FONT_BYTES)) {
-        None => {
+    let font = match FontVec::try_from_vec(Vec::from(FONT_BYTES)) {
+        Ok(data) => data,
+        Err(_) => {
             return Err(HandlerError::new(String::from("Can not instantiate font")));
         }
-        Some(data) => data,
     };
     let reader = Cursor::new(input);
     let start_image = image::load(reader, ImageFormat::Jpeg)?
@@ -126,7 +125,7 @@ async fn create_image(message: &str, input: Vec<u8>) -> Result<Vec<u8>, HandlerE
         .unwrap()
         .clone();
     let mut out: Vec<u8> = Vec::new();
-    let (_, _, start_image_w, start_image_h) = start_image.bounds();
+    let (start_image_w, start_image_h) = start_image.dimensions();
     let (new_w, new_h) = aspect_resize(start_image_w, start_image_h, PHOTO_W, PHOTO_H);
     let res = image::imageops::resize(&start_image, new_w, new_h, FilterType::Gaussian);
     let cursor = BufWriter::new(&mut out);
@@ -169,7 +168,7 @@ async fn create_image(message: &str, input: Vec<u8>) -> Result<Vec<u8>, HandlerE
         let rect = rect_list.get(ind).unwrap();
         image = draw_text(
             &mut image,
-            Rgb::white(),
+            Rgb([255u8, 255u8, 255u8]),
             i32::try_from((IMAGE_SIZE - rect.w) / 2)?,
             i32::try_from(y)?,
             *FONT_SIZE,
@@ -179,7 +178,7 @@ async fn create_image(message: &str, input: Vec<u8>) -> Result<Vec<u8>, HandlerE
         y += FONT_H + 10;
     }
 
-    let (_, _, img_x_stride, img_y_stride) = res.bounds();
+    let (img_x_stride, img_y_stride) = res.dimensions();
     let x_offset = (IMAGE_SIZE - img_x_stride) / 2;
     let y_offset: u32;
     if img_y_stride < PHOTO_H {
@@ -190,7 +189,7 @@ async fn create_image(message: &str, input: Vec<u8>) -> Result<Vec<u8>, HandlerE
     res.enumerate_pixels().into_iter().for_each(|px| {
         image.draw_pixel(px.0 + x_offset, px.1 + y_offset, px.2.clone());
     });
-    PngEncoder::new(cursor).encode(image.as_bytes(), IMAGE_SIZE, IMAGE_SIZE, ColorType::Rgb8)?;
+    PngEncoder::new(cursor).write_image(image.as_bytes(), IMAGE_SIZE, IMAGE_SIZE, ExtendedColorType::Rgb8)?;
     Ok(out)
 }
 

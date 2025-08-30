@@ -9,12 +9,9 @@ use regex::Regex;
 use teloxide::net::Download;
 use teloxide::prelude::*;
 use teloxide::requests::Requester;
-use teloxide::types::{
-    InputFile, MediaAudio, MediaDocument, MediaKind, MediaText, MessageCommon, MessageKind,
-    UserProfilePhotos,
-};
+use teloxide::types::{FileId, InputFile, MediaAudio, MediaDocument, MediaKind, MediaText, MessageCommon, MessageKind, UserProfilePhotos};
 use teloxide::Bot;
-
+use teloxide::sugar::request::RequestReplyExt;
 use crate::engine::engine::build_message;
 use crate::models::content_model::ContentModel;
 use crate::models::db_conn::DBConn;
@@ -64,7 +61,7 @@ async fn handler<'a>(bot: Bot, message: Message) -> ResponseResult<()> {
     };
 }
 
-async fn download_file(bot: &Bot, file_id: String) -> Option<Vec<u8>> {
+async fn download_file(bot: &Bot, file_id: FileId) -> Option<Vec<u8>> {
     if let Ok(file) = bot.get_file(file_id).await {
         let mut out: Vec<u8> = Vec::new();
         let mut cursor = Cursor::new(&mut out);
@@ -133,17 +130,17 @@ async fn handle_message<'a>(bot: &Bot, message: &Message) -> Result<(), HandlerE
         match message.text() {
             Some(HELP_CMD) => {
                 bot.send_message(message.chat.id, help_text)
-                    .reply_to_message_id(message.id)
+                    .reply_to(message.id)
                     .await?;
             }
             Some(START_CMD) => {
                 bot.send_message(message.chat.id, help_text)
-                    .reply_to_message_id(message.id)
+                    .reply_to(message.id)
                     .await?;
             }
             Some(VERSION_CMD) => {
                 bot.send_message(message.chat.id, VERSION_STRING)
-                    .reply_to_message_id(message.id)
+                    .reply_to(message.id)
                     .await?;
             }
             _ => {}
@@ -172,7 +169,7 @@ async fn handle_message<'a>(bot: &Bot, message: &Message) -> Result<(), HandlerE
                 );
                 return if data == VERSION_CMD {
                     bot.send_message(message.chat.id, VERSION_STRING)
-                        .reply_to_message_id(message.id)
+                        .reply_to(message.id)
                         .await?;
                     Ok(())
                 } else {
@@ -244,13 +241,13 @@ async fn handle_message<'a>(bot: &Bot, message: &Message) -> Result<(), HandlerE
             Ok(v_data) => match v_data {
                 Video(video) => {
                     bot.send_video(message.chat.id, InputFile::memory(video))
-                        .reply_to_message_id(message.id)
+                        .reply_to(message.id)
                         .await?;
                     Ok(())
                 }
                 Image(image) => {
                     bot.send_photo(message.chat.id, InputFile::memory(image))
-                        .reply_to_message_id(message.id)
+                        .reply_to(message.id)
                         .await?;
                     Ok(())
                 }
@@ -294,7 +291,7 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
 
     async fn get_help(bot: &Bot, msg: &Message) -> Result<(), HandlerError> {
         bot.send_message(msg.chat.id, TEXTS.get_tg("group_help_with_db", msg))
-            .reply_to_message_id(msg.id)
+            .reply_to(msg.id)
             .await?;
         Ok(())
     }
@@ -303,11 +300,11 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
         let resp = DBConn::new().await?.get_words(msg.chat.id.0).await?;
         if resp.is_empty() {
             bot.send_message(msg.chat.id, TEXTS.get_tg("empty_list_message", msg))
-                .reply_to_message_id(msg.id)
+                .reply_to(msg.id)
                 .await?;
         } else {
             bot.send_message(msg.chat.id, resp)
-                .reply_to_message_id(msg.id)
+                .reply_to(msg.id)
                 .await?;
         }
         Ok(())
@@ -324,7 +321,7 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
             .await?;
         if items.is_empty() {
             bot.send_message(msg.chat.id, TEXTS.get_tg("empty_list_message", msg))
-                .reply_to_message_id(msg.id)
+                .reply_to(msg.id)
                 .await?;
         } else {
             let resp = items
@@ -333,7 +330,7 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
                 .collect::<Vec<String>>()
                 .join("\n");
             bot.send_message(msg.chat.id, resp)
-                .reply_to_message_id(msg.id)
+                .reply_to(msg.id)
                 .await?;
         }
         Ok(())
@@ -347,7 +344,7 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
     ) -> Result<(), HandlerError> {
         if match_cmd.len() <= 2 {
             bot.send_message(msg.chat.id, TEXTS.get_tg("invalid_arguments", msg))
-                .reply_to_message_id(msg.id)
+                .reply_to(msg.id)
                 .await?;
             return Err(HandlerError::from_str("Args invalid"));
         }
@@ -364,12 +361,12 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
         {
             Ok(_) => {
                 bot.send_message(msg.chat.id, TEXTS.get_tg("rm_content_success", msg))
-                    .reply_to_message_id(msg.id)
+                    .reply_to(msg.id)
                     .await?;
             }
             Err(_) => {
                 bot.send_message(msg.chat.id, TEXTS.get_tg("rm_content_error", msg))
-                    .reply_to_message_id(msg.id)
+                    .reply_to(msg.id)
                     .await?;
             }
         }
@@ -392,19 +389,19 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
                             ))
                             .await?;
                         bot.send_message(msg.chat.id, TEXTS.get_tg("audio_add_success", msg))
-                            .reply_to_message_id(msg.id)
+                            .reply_to(msg.id)
                             .await?;
                         return Ok(());
                     }
                     bot.send_message(msg.chat.id, TEXTS.get_tg("audio_add_dw_error", msg))
-                        .reply_to_message_id(msg.id)
+                        .reply_to(msg.id)
                         .await?;
                     return Err(HandlerError::from_str("Invalid file load"));
                 }
             }
         }
         bot.send_message(msg.chat.id, TEXTS.get_tg("audio_add_format_error", msg))
-            .reply_to_message_id(msg.id)
+            .reply_to(msg.id)
             .await?;
         return Err(HandlerError::from_str("Invalid document"));
     }
@@ -426,24 +423,24 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
                                 ))
                                 .await?;
                             bot.send_message(msg.chat.id, TEXTS.get_tg("image_add_success", msg))
-                                .reply_to_message_id(msg.id)
+                                .reply_to(msg.id)
                                 .await?;
                             return Ok(());
                         }
                         bot.send_message(msg.chat.id, TEXTS.get_tg("image_add_dw_error", msg))
-                            .reply_to_message_id(msg.id)
+                            .reply_to(msg.id)
                             .await?;
                         return Err(HandlerError::from_str("Invalid file load"));
                     }
                 }
                 bot.send_message(msg.chat.id, TEXTS.get_tg("image_add_format_invalid", msg))
-                    .reply_to_message_id(msg.id)
+                    .reply_to(msg.id)
                     .await?;
                 return Err(HandlerError::from_str("Invalid image format"));
             }
         }
         bot.send_message(msg.chat.id, TEXTS.get_tg("image_add_format_error", msg))
-            .reply_to_message_id(msg.id)
+            .reply_to(msg.id)
             .await?;
         return Err(HandlerError::from_str("Invalid document"));
     }
@@ -456,7 +453,7 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
     ) -> Result<(), HandlerError> {
         if match_cmd.len() <= 2 {
             bot.send_message(msg.chat.id, TEXTS.get_tg("invalid_arguments", msg))
-                .reply_to_message_id(msg.id)
+                .reply_to(msg.id)
                 .await?;
             // TODO: wtf is this? why it is error?
             return Err(HandlerError::from_str("Args invalid"));
@@ -469,7 +466,7 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
             .trim();
         if !WORDS_REGEX.is_match(args) {
             bot.send_message(msg.chat.id, TEXTS.get_tg("keyword_error", msg))
-                .reply_to_message_id(msg.id)
+                .reply_to(msg.id)
                 .await?;
             return Err(HandlerError::from_str("Invalid keywoeds"));
         }
@@ -487,7 +484,7 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
     ) -> Result<(), HandlerError> {
         if match_cmd.len() <= 2 {
             bot.send_message(msg.chat.id, TEXTS.get_tg("invalid_arguments", msg))
-                .reply_to_message_id(msg.id)
+                .reply_to(msg.id)
                 .await?;
             return Err(HandlerError::from_str("Args invalid"));
         }
@@ -518,12 +515,12 @@ async fn exec_command(bot: &Bot, message: &Message) -> Result<(), HandlerError> 
                 )
                 .await?;
             bot.send_message(msg.chat.id, TEXTS.get_tg("done_msg", msg))
-                .reply_to_message_id(msg.id)
+                .reply_to(msg.id)
                 .await?;
             return Ok(());
         }
         bot.send_message(msg.chat.id, TEXTS.get_tg("error_msg", msg))
-            .reply_to_message_id(msg.id)
+            .reply_to(msg.id)
             .await?;
         Err(HandlerError::from_str("Args invalid"))
     }

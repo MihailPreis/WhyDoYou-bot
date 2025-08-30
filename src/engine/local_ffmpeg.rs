@@ -1,4 +1,5 @@
 use crate::models::error::HandlerError;
+use image::EncodableLayout;
 use log::{debug, warn};
 use std::fs::File;
 use std::io;
@@ -6,6 +7,8 @@ use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Output};
 use uuid::Uuid;
+
+const DEFAULT_AUDIO: &[u8] = include_bytes!("../../assets/input.mp3");
 
 pub fn encode_video_local(frame: Vec<u8>, audio: Option<Vec<u8>>) -> Result<Vec<u8>, HandlerError> {
     debug!("--->>> encode_video LOCAL");
@@ -34,15 +37,14 @@ pub fn encode_video_local(frame: Vec<u8>, audio: Option<Vec<u8>>) -> Result<Vec<
         "-i",
         jpg_file.as_str(),
     ]);
-    if let Some(audio) = audio {
-        File::create(mp3_file.as_str())
-            .expect("Unable to create image file")
-            .write_all(&*audio)
-            .expect("Unable to write image data");
-        args.extend_from_slice(&["-i", mp3_file.as_str()]);
-    } else {
-        args.extend_from_slice(&["-i", "assets/input.mp3"]);
+    let mut audio_file = File::create(mp3_file.as_str())
+        .expect("Unable to create audio file");
+    match audio {
+        None => audio_file.write_all(DEFAULT_AUDIO),
+        Some(data) => audio_file.write_all(data.as_bytes())
     }
+        .expect("Unable to write audio data");
+    args.extend_from_slice(&["-i", mp3_file.as_str()]);
     args.extend_from_slice(&[
         "-c:v",
         "libx264",
@@ -74,6 +76,7 @@ pub fn encode_video_local(frame: Vec<u8>, audio: Option<Vec<u8>>) -> Result<Vec<
         let result = std::fs::read(mp4_file.clone())?;
         safe_remove(jpg_file.as_str());
         safe_remove(mp4_file.as_str());
+        safe_remove(mp3_file.as_str());
         Ok(result)
     } else {
         debug!("--->>> encode_video LOCAL :: error");
@@ -85,6 +88,7 @@ pub fn encode_video_local(frame: Vec<u8>, audio: Option<Vec<u8>>) -> Result<Vec<
         }
         safe_remove(jpg_file.as_str());
         safe_remove(mp4_file.as_str());
+        safe_remove(mp3_file.as_str());
         Err(HandlerError::empty())
     }
 }
