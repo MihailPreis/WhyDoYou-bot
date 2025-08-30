@@ -76,6 +76,7 @@ pub fn encode_video_local(frame: Vec<u8>, audio: Option<Vec<u8>>) -> Result<Vec<
         let result = std::fs::read(mp4_file.clone())?;
         safe_remove(jpg_file.as_str());
         safe_remove(mp4_file.as_str());
+        safe_remove(mp3_file.as_str());
         Ok(result)
     } else {
         debug!("--->>> encode_video LOCAL :: error");
@@ -87,6 +88,7 @@ pub fn encode_video_local(frame: Vec<u8>, audio: Option<Vec<u8>>) -> Result<Vec<
         }
         safe_remove(jpg_file.as_str());
         safe_remove(mp4_file.as_str());
+        safe_remove(mp3_file.as_str());
         Err(HandlerError::empty())
     }
 }
