@@ -1,5 +1,5 @@
 use lazy_static::lazy_static;
-use rand::seq::SliceRandom;
+use rand::prelude::IndexedRandom;
 
 lazy_static! {
     static ref PICS: Vec<&'static [u8]> = vec![
@@ -10,5 +10,5 @@ lazy_static! {
 }
 
 pub fn get_rand_image() -> Vec<u8> {
-    PICS.choose(&mut rand::thread_rng()).unwrap().to_vec()
+    PICS.choose(&mut rand::rng()).unwrap().to_vec()
 }

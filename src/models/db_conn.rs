@@ -1,7 +1,7 @@
 use crate::models::content_model::ContentModel;
 use crate::models::error::HandlerError;
 use lazy_static::lazy_static;
-
+use rand::prelude::IndexedRandom;
 #[cfg(feature = "db")]
 use {
     crate::utils::string_utils::normalize_words,
@@ -45,8 +45,7 @@ pub async fn setup_db() -> Result<(), HandlerError> {
 #[cfg(feature = "db")]
 impl DBConn {
     pub async fn new() -> Result<Self, HandlerError> {
-        let mut connection_options = SqliteConnectOptions::from_str(&**DB_URL)?;
-        connection_options
+        let connection_options = SqliteConnectOptions::from_str(&**DB_URL)?
             .log_statements(log::LevelFilter::Debug)
             .log_slow_statements(log::LevelFilter::Warn, Duration::from_secs(1));
         let pool: Pool<Sqlite> = SqlitePoolOptions::new()
@@ -106,7 +105,7 @@ impl DBConn {
                 });
             }
         }
-        buff.choose(&mut rand::thread_rng())
+        buff.choose(&mut rand::rng())
             .and_then(|i| Some(i.clone()))
             .ok_or(HandlerError::empty())
     }

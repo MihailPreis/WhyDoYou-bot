@@ -45,7 +45,7 @@ impl Locale {
             .locales
             .iter()
             .find(|l| l.lang.to_lowercase() == lang.to_lowercase())
-            .or_else(|| *{ &self.locales.iter().find(|l| l.is_base) })
+            .or_else(|| { self.locales.iter().find(|l| l.is_base) })
             .and_then(|l| l.data.get(key).to_owned().and_then(|s| Some(s.as_str())))
             .unwrap_or(key);
         return result.to_string();
