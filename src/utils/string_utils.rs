@@ -50,7 +50,7 @@ fn truncated(s: String, max_ln: usize) -> String {
 ///  - message: message
 ///
 /// Return: contains trigger words in vector
-pub fn contains_in(words: String, message: String) -> Vec<String> {
+pub fn contains_in(words: String, message: &str) -> Vec<String> {
     let l_msg = message.to_lowercase();
     words
         .to_lowercase()

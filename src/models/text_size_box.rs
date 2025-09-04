@@ -17,7 +17,7 @@ impl TextSizeBox {
     /// Return: TextSizeBox instance
     pub fn from<T : Font>(text: &str, font: T, scale: PxScale) -> Self {
         let scaled_font = font.as_scaled(scale);
-        let mut w = 0f32;
+        let w = 0f32;
         let mut last: Option<GlyphId> = None;
         text.chars().map(|char| {
             let glyph_id = scaled_font.glyph_id(char);
