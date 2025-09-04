@@ -115,7 +115,7 @@ async fn get_custom_words_from_db(chat_id: i64) -> Option<String> {
 }
 
 async fn handle_message<'a>(bot: &Bot, message: &Message) -> Result<(), HandlerError> {
-    let user = match message.from() {
+    let user = match &message.from {
         None => return Ok(()),
         Some(user) => user,
     };
@@ -189,7 +189,7 @@ async fn handle_message<'a>(bot: &Bot, message: &Message) -> Result<(), HandlerE
                 if let Some(custom_words) =
                     get_custom_words_from_db(message.chat.id.clone().0).await
                 {
-                    let _words = contains_in(custom_words, String::from(data));
+                    let _words = contains_in(custom_words, data);
                     if !_words.is_empty() {
                         if let Ok(content) = db_conn
                             .get_random_content(message.chat.id.0, true, _words)
@@ -217,7 +217,7 @@ async fn handle_message<'a>(bot: &Bot, message: &Message) -> Result<(), HandlerE
                 if let Some(custom_words) =
                     get_custom_words_from_db(message.chat.id.clone().0).await
                 {
-                    let _words = contains_in(custom_words, String::from(data));
+                    let _words = contains_in(custom_words, data);
                     if !_words.is_empty() {
                         if let Ok(content) = db_conn
                             .get_random_content(message.chat.id.0, false, _words)
@@ -551,7 +551,7 @@ impl Locale {
     /// Return: localized string or key
     fn get_tg(&self, key: &str, msg: &Message) -> String {
         let lang = &msg
-            .from()
+            .from.clone()
             .and_then(|u| u.language_code.clone())
             .unwrap_or(String::from("en"));
         self.get(&*format!("tg_{}", key), lang.as_str())

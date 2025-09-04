@@ -70,12 +70,10 @@ pub async fn build_message(
     audio_handler: impl Future<Output = Option<Vec<u8>>>,
 ) -> Result<VData, HandlerError> {
     let message: &str;
-    if let Some(words) = custom_words {
-        info!("Found trigger words in DB: {:?}", words);
-        let words = contains_in(words, String::from(res));
-        if words.is_empty() {
-            return Err(HandlerError::empty());
-        }
+    let found_custom_words = custom_words.inspect(|words| info!("Found trigger words in DB: {:?}", words))
+        .map(|words| contains_in(words, res))
+        .and_then(|words| if words.is_empty() { None } else { Some(words) });
+    if let Some(words) = found_custom_words {
         info!("Trigger words: {:?}", words);
         message = res;
     } else if !TRIGGER_WORDS.is_empty() {
